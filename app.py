@@ -167,7 +167,6 @@ class Api:
         if not svc:
             return {'error': 'Not authenticated'}
 
-        # Fetch month-1 to month+1
         start = datetime(year, max(1, month - 1), 1, tzinfo=timezone.utc)
         if month + 1 > 12:
             end = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
@@ -175,15 +174,43 @@ class Api:
             end = datetime(year, month + 1, 1, tzinfo=timezone.utc)
 
         try:
-            res = svc.events().list(
-                calendarId='primary',
-                timeMin=start.isoformat(),
-                timeMax=end.isoformat(),
-                singleEvents=True,
-                orderBy='startTime',
-                maxResults=500
-            ).execute()
-            return {'events': res.get('items', [])}
+            # All visible calendars with their colors
+            cal_list_res = svc.calendarList().list().execute()
+            calendars = [c for c in cal_list_res.get('items', [])
+                         if c.get('selected', True)]
+
+            # Event-level color palette (for colorId overrides)
+            color_defs = svc.colors().get().execute()
+            event_colors = color_defs.get('event', {})
+
+            all_events = []
+            for cal in calendars:
+                cal_id = cal['id']
+                cal_bg = cal.get('backgroundColor', '#7c6af7')
+                cal_name = cal.get('summary', '')
+                try:
+                    res = svc.events().list(
+                        calendarId=cal_id,
+                        timeMin=start.isoformat(),
+                        timeMax=end.isoformat(),
+                        singleEvents=True,
+                        orderBy='startTime',
+                        maxResults=500
+                    ).execute()
+                except Exception:
+                    continue
+                for ev in res.get('items', []):
+                    ev['_displayColor'] = (
+                        event_colors.get(ev['colorId'], {}).get('background', cal_bg)
+                        if ev.get('colorId') else cal_bg
+                    )
+                    ev['_calendarName'] = cal_name
+                    all_events.append(ev)
+
+            all_events.sort(key=lambda ev: (
+                ev.get('start', {}).get('dateTime') or ev.get('start', {}).get('date') or ''
+            ))
+            return {'events': all_events}
         except Exception as e:
             if '401' in str(e):
                 TOKEN_FILE.unlink(missing_ok=True)

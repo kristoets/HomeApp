@@ -179,6 +179,12 @@ function buildDayCell(date, extraClass, eventMap) {
     evEl.className = 'cal-event';
     const time = ev.start?.dateTime ? ' · ' + formatTime(ev.start.dateTime) : '';
     evEl.textContent = (ev.summary || '(no title)') + time;
+    const hex = ev._displayColor;
+    if (hex) {
+      evEl.style.background = hex + '28';
+      evEl.style.color = hex;
+      evEl.style.borderLeftColor = hex;
+    }
     cell.appendChild(evEl);
   }
   if (dayEvents.length > maxShow) {
@@ -282,6 +288,10 @@ function showDayPopup(e, dateStr, events) {
     for (const ev of events) {
       const el = document.createElement('div');
       el.className = 'popup-event';
+      if (ev._displayColor) {
+        el.style.borderLeft = `3px solid ${ev._displayColor}`;
+        el.style.paddingLeft = '8px';
+      }
       const timeEl = document.createElement('div');
       timeEl.className = 'popup-event-time';
       if (ev.start?.dateTime) {
@@ -294,6 +304,13 @@ function showDayPopup(e, dateStr, events) {
       titleEl.textContent = ev.summary || '(no title)';
       el.appendChild(timeEl);
       el.appendChild(titleEl);
+      if (ev._calendarName) {
+        const calEl = document.createElement('div');
+        calEl.className = 'popup-event-calendar';
+        calEl.textContent = ev._calendarName;
+        if (ev._displayColor) calEl.style.color = ev._displayColor;
+        el.appendChild(calEl);
+      }
       eventsEl.appendChild(el);
     }
   }
