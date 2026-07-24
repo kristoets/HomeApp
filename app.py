@@ -319,13 +319,27 @@ class Api:
 
     # ── Google Tasks ──────────────────────────────────────────────────────────
 
-    def tasks_get(self):
+    def tasklists_get(self):
+        svc = _get_tasks_client()
+        if not svc:
+            return {'error': 'not_authenticated', 'lists': []}
+        try:
+            result = svc.tasklists().list(maxResults=100).execute()
+            lists = [
+                {'id': tl['id'], 'name': tl.get('title', '')}
+                for tl in result.get('items', [])
+            ]
+            return {'lists': lists}
+        except Exception as e:
+            return {'error': str(e), 'lists': []}
+
+    def tasks_get(self, tasklist_id='@default'):
         svc = _get_tasks_client()
         if not svc:
             return {'error': 'not_authenticated', 'tasks': [], 'completed': []}
         try:
             result = svc.tasks().list(
-                tasklist='@default',
+                tasklist=tasklist_id,
                 showCompleted=True,
                 showHidden=True,
                 maxResults=200
@@ -341,43 +355,43 @@ class Api:
         except Exception as e:
             return {'error': str(e), 'tasks': [], 'completed': []}
 
-    def tasks_add(self, title):
+    def tasks_add(self, title, tasklist_id='@default'):
         svc = _get_tasks_client()
         if not svc:
             return {'error': 'not_authenticated'}
         try:
-            task = svc.tasks().insert(tasklist='@default', body={'title': title}).execute()
+            task = svc.tasks().insert(tasklist=tasklist_id, body={'title': title}).execute()
             return {'task': task}
         except Exception as e:
             return {'error': str(e)}
 
-    def tasks_complete(self, task_id, done):
+    def tasks_complete(self, task_id, done, tasklist_id='@default'):
         svc = _get_tasks_client()
         if not svc:
             return {'error': 'not_authenticated'}
         try:
             body = {'status': 'completed'} if done else {'status': 'needsAction', 'completed': None}
-            task = svc.tasks().patch(tasklist='@default', task=task_id, body=body).execute()
+            task = svc.tasks().patch(tasklist=tasklist_id, task=task_id, body=body).execute()
             return {'task': task}
         except Exception as e:
             return {'error': str(e)}
 
-    def tasks_delete(self, task_id):
+    def tasks_delete(self, task_id, tasklist_id='@default'):
         svc = _get_tasks_client()
         if not svc:
             return {'error': 'not_authenticated'}
         try:
-            svc.tasks().delete(tasklist='@default', task=task_id).execute()
+            svc.tasks().delete(tasklist=tasklist_id, task=task_id).execute()
             return {'success': True}
         except Exception as e:
             return {'error': str(e)}
 
-    def tasks_reorder(self, task_id, previous_id):
+    def tasks_reorder(self, task_id, previous_id, tasklist_id='@default'):
         svc = _get_tasks_client()
         if not svc:
             return {'error': 'not_authenticated'}
         try:
-            kwargs = {'tasklist': '@default', 'task': task_id}
+            kwargs = {'tasklist': tasklist_id, 'task': task_id}
             if previous_id:
                 kwargs['previous'] = previous_id
             svc.tasks().move(**kwargs).execute()
@@ -385,13 +399,13 @@ class Api:
         except Exception as e:
             return {'error': str(e)}
 
-    def tasks_update_title(self, task_id, title):
+    def tasks_update_title(self, task_id, title, tasklist_id='@default'):
         svc = _get_tasks_client()
         if not svc:
             return {'error': 'not_authenticated'}
         try:
             task = svc.tasks().patch(
-                tasklist='@default', task=task_id, body={'title': title}
+                tasklist=tasklist_id, task=task_id, body={'title': title}
             ).execute()
             return {'task': task}
         except Exception as e:

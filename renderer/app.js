@@ -42,6 +42,8 @@ const state = {
   calendars: [],
   calendarVisibility: {},
   editingEvent: null,
+  taskLists: [],
+  activeTaskListId: '@default',
   tasks: [],
   completedTasks: [],
   tasksLoading: false,
@@ -55,6 +57,7 @@ window._onAuthSuccess = async function () {
   updateAuthUI();
   await loadCalendarList();
   loadCalendarEvents();
+  await loadTaskLists();
   loadTasks();
 };
 
@@ -80,6 +83,7 @@ async function init() {
   if (state.auth === 'logged-in') {
     await loadCalendarList();
     await loadCalendarEvents();
+    await loadTaskLists();
     await loadTasks();
   } else {
     renderTasks();
@@ -490,10 +494,39 @@ function showDayPopup(e, dateStr, events) {
 }
 
 // ── Google Tasks ────────────────────────────────────────────────────────────
+async function loadTaskLists() {
+  const res = await call('tasklists_get');
+  if (!res.error) {
+    state.taskLists = res.lists || [];
+    if (state.taskLists.length > 0 && !state.taskLists.find(l => l.id === state.activeTaskListId)) {
+      state.activeTaskListId = state.taskLists[0].id;
+    }
+  }
+  renderTaskListTabs();
+}
+
+function renderTaskListTabs() {
+  const container = document.getElementById('task-lists-tabs');
+  if (!container) return;
+  container.innerHTML = '';
+  if (state.auth !== 'logged-in' || state.taskLists.length <= 1) return;
+  state.taskLists.forEach(list => {
+    const btn = document.createElement('button');
+    btn.className = 'task-list-tab' + (list.id === state.activeTaskListId ? ' active' : '');
+    btn.textContent = list.name;
+    btn.addEventListener('click', () => {
+      state.activeTaskListId = list.id;
+      renderTaskListTabs();
+      loadTasks();
+    });
+    container.appendChild(btn);
+  });
+}
+
 async function loadTasks() {
   if (state.tasksLoading) return;
   state.tasksLoading = true;
-  const res = await call('tasks_get');
+  const res = await call('tasks_get', state.activeTaskListId);
   state.tasksLoading = false;
   if (res.error) {
     state.tasksError = res.error;
@@ -599,7 +632,7 @@ function startEditTask(_item, textEl, task) {
     saved = true;
     const newTitle = input.value.trim();
     if (newTitle && newTitle !== task.title) {
-      await call('tasks_update_title', task.id, newTitle);
+      await call('tasks_update_title', task.id, newTitle, state.activeTaskListId);
     }
     await loadTasks();
   };
@@ -613,17 +646,17 @@ function startEditTask(_item, textEl, task) {
 async function addTask(title) {
   title = title.trim();
   if (!title) return;
-  await call('tasks_add', title);
+  await call('tasks_add', title, state.activeTaskListId);
   await loadTasks();
 }
 
 async function toggleTask(taskId, isDone) {
-  await call('tasks_complete', taskId, !isDone);
+  await call('tasks_complete', taskId, !isDone, state.activeTaskListId);
   await loadTasks();
 }
 
 async function deleteTask(taskId) {
-  await call('tasks_delete', taskId);
+  await call('tasks_delete', taskId, state.activeTaskListId);
   await loadTasks();
 }
 
@@ -664,7 +697,7 @@ async function onDrop(e) {
   state.tasks = active;
   renderTasks();
 
-  await call('tasks_reorder', srcId, previousId);
+  await call('tasks_reorder', srcId, previousId, state.activeTaskListId);
   await loadTasks();
 }
 
@@ -867,6 +900,8 @@ function bindEvents() {
     state.events = [];
     state.calendars = [];
     state.calendarVisibility = {};
+    state.taskLists = [];
+    state.activeTaskListId = '@default';
     state.tasks = [];
     state.completedTasks = [];
     state.tasksError = null;

@@ -769,6 +769,38 @@ input[type="time"].form-input {
 
 .popup-no-events { font-size: 12px; color: var(--text-muted); padding: 8px 0; }
 
+/* ── Task list tabs ────────────────────────────────────────────────────────── */
+.task-lists-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 0 10px;
+}
+
+.task-list-tab {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: var(--font);
+  padding: 3px 12px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+
+.task-list-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.task-list-tab.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent-light);
+}
+
 /* ── Tasks ─────────────────────────────────────────────────────────────────── */
 .tasks-message {
   font-size: 13px;
