@@ -20,6 +20,7 @@ APP_DIR.mkdir(exist_ok=True)
 TOKEN_FILE = APP_DIR / 'token.json'
 CREDS_FILE = APP_DIR / 'credentials.json'
 TODOS_FILE = APP_DIR / 'todos.json'
+CAL_VISIBILITY_FILE = APP_DIR / 'calendar_visibility.json'
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 REDIRECT_PORT = 3141
@@ -160,6 +161,30 @@ class Api:
         except Exception as e:
             return {'error': f'Invalid JSON: {e}'}
 
+    # ── Calendar list & visibility ────────────────────────────────────────────
+
+    def calendar_list(self):
+        svc = _get_google_client()
+        if not svc:
+            return {'error': 'Not authenticated'}
+        try:
+            res = svc.calendarList().list().execute()
+            return {'calendars': [
+                {'id': c['id'], 'name': c.get('summary', ''), 'color': c.get('backgroundColor', '#7c6af7')}
+                for c in res.get('items', []) if c.get('selected', True)
+            ]}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def calendar_visibility_get(self):
+        if CAL_VISIBILITY_FILE.exists():
+            return json.loads(CAL_VISIBILITY_FILE.read_text())
+        return {}
+
+    def calendar_visibility_set(self, visibility):
+        CAL_VISIBILITY_FILE.write_text(json.dumps(visibility))
+        return {'success': True}
+
     # ── Calendar ──────────────────────────────────────────────────────────────
 
     def calendar_events(self, start_str, end_str):
@@ -175,6 +200,10 @@ class Api:
             cal_list_res = svc.calendarList().list().execute()
             calendars = [c for c in cal_list_res.get('items', [])
                          if c.get('selected', True)]
+
+            # Filter by user's visibility preferences
+            visibility = json.loads(CAL_VISIBILITY_FILE.read_text()) if CAL_VISIBILITY_FILE.exists() else {}
+            calendars = [c for c in calendars if visibility.get(c['id'], True)]
 
             # Event-level color palette (for colorId overrides)
             color_defs = svc.colors().get().execute()

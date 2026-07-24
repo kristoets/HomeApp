@@ -39,6 +39,8 @@ const state = {
   viewAnchor: getMondayOfWeek(new Date()),
   events: [],
   eventsLoading: false,
+  calendars: [],
+  calendarVisibility: {},
   todos: [],
   dragSrc: null
 };
@@ -46,9 +48,10 @@ const state = {
 const MAX_DONE = 5;
 
 // ── Global callbacks from Python ───────────────────────────────────────────
-window._onAuthSuccess = function () {
+window._onAuthSuccess = async function () {
   state.auth = 'logged-in';
   updateAuthUI();
+  await loadCalendarList();
   loadCalendarEvents();
 };
 
@@ -74,10 +77,12 @@ async function init() {
   updateAuthUI();
 
   if (state.auth === 'logged-in') {
+    await loadCalendarList();
     await loadCalendarEvents();
   }
 
   renderCalendar();
+  renderCalendarLegend();
   bindEvents();
 }
 
@@ -145,6 +150,65 @@ async function loadCalendarEvents() {
   }
 
   renderCalendar();
+}
+
+// ── Calendar List & Visibility ─────────────────────────────────────────────
+async function loadCalendarList() {
+  const [calRes, visRes] = await Promise.all([
+    call('calendar_list'),
+    call('calendar_visibility_get')
+  ]);
+  state.calendars = calRes.calendars || [];
+  state.calendarVisibility = visRes || {};
+  document.getElementById('btn-calendars').style.display = 'inline-flex';
+  renderCalendarLegend();
+}
+
+function renderCalendarLegend() {
+  const legend = document.getElementById('calendar-legend');
+  legend.innerHTML = '';
+  const visible = state.calendars.filter(c => state.calendarVisibility[c.id] !== false);
+  for (const cal of visible) {
+    const chip = document.createElement('span');
+    chip.className = 'legend-chip';
+    const dot = document.createElement('span');
+    dot.className = 'legend-dot';
+    dot.style.background = cal.color;
+    const name = document.createElement('span');
+    name.textContent = cal.name;
+    chip.appendChild(dot);
+    chip.appendChild(name);
+    legend.appendChild(chip);
+  }
+}
+
+function showCalendarModal() {
+  const body = document.getElementById('modal-calendars-body');
+  body.innerHTML = '';
+  for (const cal of state.calendars) {
+    const checked = state.calendarVisibility[cal.id] !== false;
+    const row = document.createElement('label');
+    row.className = 'calendar-toggle-row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = checked;
+    cb.addEventListener('change', async () => {
+      state.calendarVisibility[cal.id] = cb.checked;
+      await call('calendar_visibility_set', state.calendarVisibility);
+      renderCalendarLegend();
+      await loadCalendarEvents();
+    });
+    const dot = document.createElement('span');
+    dot.className = 'legend-dot';
+    dot.style.background = cal.color;
+    const name = document.createElement('span');
+    name.textContent = cal.name;
+    row.appendChild(cb);
+    row.appendChild(dot);
+    row.appendChild(name);
+    body.appendChild(row);
+  }
+  document.getElementById('modal-calendars').style.display = 'flex';
 }
 
 // ── Calendar Render ────────────────────────────────────────────────────────
@@ -614,6 +678,10 @@ function bindEvents() {
     await call('auth_logout');
     state.auth = 'not-logged-in';
     state.events = [];
+    state.calendars = [];
+    state.calendarVisibility = {};
+    document.getElementById('btn-calendars').style.display = 'none';
+    document.getElementById('calendar-legend').innerHTML = '';
     updateAuthUI();
     renderCalendar();
   });
@@ -646,6 +714,14 @@ function bindEvents() {
   document.getElementById('link-console').addEventListener('click', (e) => {
     e.preventDefault();
     call('window_open_external', 'https://console.cloud.google.com/');
+  });
+
+  document.getElementById('btn-calendars').addEventListener('click', showCalendarModal);
+  document.getElementById('modal-calendars-close').addEventListener('click', () => {
+    document.getElementById('modal-calendars').style.display = 'none';
+  });
+  document.getElementById('modal-calendars').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
   });
 
   document.getElementById('day-popup-close').addEventListener('click', () => {
@@ -681,6 +757,7 @@ function bindEvents() {
     if (e.key === 'Escape') {
       document.getElementById('modal-event').style.display = 'none';
       document.getElementById('modal-creds').style.display = 'none';
+      document.getElementById('modal-calendars').style.display = 'none';
       document.getElementById('day-popup').style.display = 'none';
     }
     if (e.key === 'F11') { e.preventDefault(); call('window_fullscreen'); }

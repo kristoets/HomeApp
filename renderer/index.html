@@ -40,7 +40,9 @@
           <button id="cal-next" class="btn btn-icon">&#8250;</button>
           <button id="btn-today" class="btn btn-ghost btn-sm">Today</button>
           <button id="btn-add-event" class="btn btn-primary btn-sm" style="display:none">+ Event</button>
+          <button id="btn-calendars" class="btn btn-ghost btn-sm" style="display:none">Calendars</button>
         </div>
+        <div id="calendar-legend" class="calendar-legend"></div>
         <div class="calendar-weekdays">
           <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
         </div>
@@ -113,6 +115,17 @@
         <button class="btn btn-ghost" id="modal-creds-cancel">Cancel</button>
         <button class="btn btn-primary" id="modal-creds-save">Save & Connect</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal: Calendar visibility -->
+  <div id="modal-calendars" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Calendars</h3>
+        <button class="modal-close" id="modal-calendars-close">✕</button>
+      </div>
+      <div class="modal-body" id="modal-calendars-body"></div>
     </div>
   </div>
 

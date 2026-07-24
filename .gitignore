@@ -1,5 +1,6 @@
 credentials.json
 token.json
+calendar_visibility.json
 node_modules/
 __pycache__/
 *.pyc
