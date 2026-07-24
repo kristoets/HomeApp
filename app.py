@@ -263,8 +263,8 @@ class Api:
         else:
             body = {
                 'summary': title,
-                'start': {'dateTime': start, 'timeZone': 'UTC'},
-                'end': {'dateTime': end, 'timeZone': 'UTC'}
+                'start': {'dateTime': start},
+                'end': {'dateTime': end}
             }
         try:
             ev = svc.events().insert(calendarId=calendar_id, body=body).execute()

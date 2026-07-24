@@ -354,6 +354,14 @@ function formatTime(dateTimeStr) {
   return new Date(dateTimeStr).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
+function localDateTimeStr(dateStr, timeStr) {
+  const offset = -new Date().getTimezoneOffset(); // minutes ahead of UTC
+  const sign = offset >= 0 ? '+' : '-';
+  const h = String(Math.floor(Math.abs(offset) / 60)).padStart(2, '0');
+  const m = String(Math.abs(offset) % 60).padStart(2, '0');
+  return `${dateStr}T${timeStr}:00${sign}${h}:${m}`;
+}
+
 // ── Day popup ──────────────────────────────────────────────────────────────
 function showDayPopup(e, dateStr, events) {
   const popup = document.getElementById('day-popup');
@@ -617,8 +625,8 @@ async function saveEvent() {
     endDate.setDate(endDate.getDate() + 1);
     endVal = dateKey(endDate);
   } else {
-    startVal = `${date}T${startTime || '00:00'}:00`;
-    endVal = `${date}T${endTime || startTime || '01:00'}:00`;
+    startVal = localDateTimeStr(date, startTime || '00:00');
+    endVal = localDateTimeStr(date, endTime || startTime || '01:00');
   }
 
   const btn = document.getElementById('modal-event-save');
