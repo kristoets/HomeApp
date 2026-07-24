@@ -21,11 +21,22 @@ async function call(method, ...args) {
   throw new Error('No API bridge available');
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+function getMondayOfWeek(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+  return d;
+}
+
 // ── State ──────────────────────────────────────────────────────────────────
 const state = {
   auth: 'unknown',
   viewYear: new Date().getFullYear(),
   viewMonth: new Date().getMonth() + 1,
+  viewMode: 'rolling',     // 'rolling' | 'month'
+  viewAnchor: getMondayOfWeek(new Date()),
   events: [],
   eventsLoading: false,
   todos: [],
@@ -124,79 +135,123 @@ async function loadCalendarEvents() {
 }
 
 // ── Calendar Render ────────────────────────────────────────────────────────
-function renderCalendar() {
-  const { viewYear: year, viewMonth: month } = state;
-  const monthNames = ['January','February','March','April','May','June',
-                      'July','August','September','October','November','December'];
-  document.getElementById('cal-month-label').textContent = `${monthNames[month - 1]} ${year}`;
+const MONTH_NAMES = ['January','February','March','April','May','June',
+                     'July','August','September','October','November','December'];
 
-  const firstDay = new Date(year, month - 1, 1);
-  const lastDay = new Date(year, month, 0);
-  let startDow = (firstDay.getDay() + 6) % 7;
-
-  const days = [];
-  for (let i = startDow - 1; i >= 0; i--) {
-    days.push({ date: new Date(year, month - 1, -i), currentMonth: false });
-  }
-  for (let d = 1; d <= lastDay.getDate(); d++) {
-    days.push({ date: new Date(year, month - 1, d), currentMonth: true });
-  }
-  const remaining = (7 - (days.length % 7)) % 7;
-  for (let i = 1; i <= remaining; i++) {
-    days.push({ date: new Date(year, month, i), currentMonth: false });
-  }
-
-  const today = new Date();
-  const todayStr = dateKey(today);
-
-  const eventMap = {};
+function buildEventMap() {
+  const map = {};
   for (const ev of state.events) {
     const raw = ev.start?.date || ev.start?.dateTime;
     if (!raw) continue;
     const key = raw.substring(0, 10);
-    if (!eventMap[key]) eventMap[key] = [];
-    eventMap[key].push(ev);
+    if (!map[key]) map[key] = [];
+    map[key].push(ev);
+  }
+  return map;
+}
+
+function buildDayCell(date, extraClass, eventMap) {
+  const key = dateKey(date);
+  const dayEvents = eventMap[key] || [];
+  const isToday = key === dateKey(new Date());
+  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+
+  const cell = document.createElement('div');
+  cell.className = 'cal-day' +
+    (extraClass ? ' ' + extraClass : '') +
+    (isToday ? ' today' : '') +
+    (isWeekend ? ' weekend' : '');
+  cell.dataset.date = key;
+
+  const numEl = document.createElement('div');
+  numEl.className = 'cal-day-num';
+  if (date.getDate() === 1 && extraClass !== 'other-month') {
+    numEl.textContent = MONTH_NAMES[date.getMonth()].slice(0, 3) + ' 1';
+  } else {
+    numEl.textContent = date.getDate();
+  }
+  cell.appendChild(numEl);
+
+  const maxShow = 3;
+  for (let i = 0; i < Math.min(dayEvents.length, maxShow); i++) {
+    const ev = dayEvents[i];
+    const evEl = document.createElement('div');
+    evEl.className = 'cal-event';
+    const time = ev.start?.dateTime ? ' · ' + formatTime(ev.start.dateTime) : '';
+    evEl.textContent = (ev.summary || '(no title)') + time;
+    cell.appendChild(evEl);
+  }
+  if (dayEvents.length > maxShow) {
+    const more = document.createElement('div');
+    more.className = 'cal-event more';
+    more.textContent = `+${dayEvents.length - maxShow} more`;
+    cell.appendChild(more);
   }
 
+  cell.addEventListener('click', (e) => showDayPopup(e, key, dayEvents));
+  return cell;
+}
+
+function renderCalendar() {
+  if (state.viewMode === 'rolling') {
+    renderCalendarRolling();
+  } else {
+    renderCalendarMonth();
+  }
+}
+
+function renderCalendarRolling() {
+  const anchor = state.viewAnchor;
+  const lastDay = new Date(anchor);
+  lastDay.setDate(anchor.getDate() + 34);
+
+  let label;
+  if (anchor.getMonth() === lastDay.getMonth() && anchor.getFullYear() === lastDay.getFullYear()) {
+    label = `${MONTH_NAMES[anchor.getMonth()]} ${anchor.getFullYear()}`;
+  } else if (anchor.getFullYear() === lastDay.getFullYear()) {
+    label = `${MONTH_NAMES[anchor.getMonth()].slice(0,3)} – ${MONTH_NAMES[lastDay.getMonth()].slice(0,3)} ${anchor.getFullYear()}`;
+  } else {
+    label = `${MONTH_NAMES[anchor.getMonth()].slice(0,3)} ${anchor.getFullYear()} – ${MONTH_NAMES[lastDay.getMonth()].slice(0,3)} ${lastDay.getFullYear()}`;
+  }
+  document.getElementById('cal-month-label').textContent = label;
+
+  const eventMap = buildEventMap();
   const grid = document.getElementById('calendar-grid');
   grid.innerHTML = '';
 
-  for (const { date, currentMonth } of days) {
-    const key = dateKey(date);
-    const dayEvents = eventMap[key] || [];
-    const isToday = key === todayStr;
-    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+  for (let i = 0; i < 35; i++) {
+    const d = new Date(anchor);
+    d.setDate(anchor.getDate() + i);
+    grid.appendChild(buildDayCell(d, null, eventMap));
+  }
+}
 
-    const cell = document.createElement('div');
-    cell.className = 'cal-day' +
-      (!currentMonth ? ' other-month' : '') +
-      (isToday ? ' today' : '') +
-      (isWeekend ? ' weekend' : '');
-    cell.dataset.date = key;
+function renderCalendarMonth() {
+  const { viewYear: year, viewMonth: month } = state;
+  document.getElementById('cal-month-label').textContent = `${MONTH_NAMES[month - 1]} ${year}`;
 
-    const numEl = document.createElement('div');
-    numEl.className = 'cal-day-num';
-    numEl.textContent = date.getDate();
-    cell.appendChild(numEl);
+  const firstDay = new Date(year, month - 1, 1);
+  const lastDay = new Date(year, month, 0);
+  const startDow = (firstDay.getDay() + 6) % 7;
 
-    const maxShow = 3;
-    for (let i = 0; i < Math.min(dayEvents.length, maxShow); i++) {
-      const ev = dayEvents[i];
-      const evEl = document.createElement('div');
-      evEl.className = 'cal-event';
-      const time = ev.start?.dateTime ? ' · ' + formatTime(ev.start.dateTime) : '';
-      evEl.textContent = (ev.summary || '(no title)') + time;
-      cell.appendChild(evEl);
-    }
-    if (dayEvents.length > maxShow) {
-      const more = document.createElement('div');
-      more.className = 'cal-event more';
-      more.textContent = `+${dayEvents.length - maxShow} more`;
-      cell.appendChild(more);
-    }
+  const days = [];
+  for (let i = startDow - 1; i >= 0; i--) {
+    days.push({ date: new Date(year, month - 1, -i), other: true });
+  }
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    days.push({ date: new Date(year, month - 1, d), other: false });
+  }
+  const remaining = (7 - (days.length % 7)) % 7;
+  for (let i = 1; i <= remaining; i++) {
+    days.push({ date: new Date(year, month, i), other: true });
+  }
 
-    cell.addEventListener('click', (e) => showDayPopup(e, key, dayEvents));
-    grid.appendChild(cell);
+  const eventMap = buildEventMap();
+  const grid = document.getElementById('calendar-grid');
+  grid.innerHTML = '';
+
+  for (const { date, other } of days) {
+    grid.appendChild(buildDayCell(date, other ? 'other-month' : null, eventMap));
   }
 }
 
@@ -481,9 +536,22 @@ async function saveCreds() {
 
 // ── Navigation ─────────────────────────────────────────────────────────────
 function changeMonth(delta) {
-  state.viewMonth += delta;
-  if (state.viewMonth > 12) { state.viewMonth = 1; state.viewYear++; }
-  if (state.viewMonth < 1) { state.viewMonth = 12; state.viewYear--; }
+  if (state.viewMode === 'rolling') {
+    state.viewMode = 'month';
+    if (delta === -1) {
+      state.viewYear = state.viewAnchor.getFullYear();
+      state.viewMonth = state.viewAnchor.getMonth() + 1;
+    } else {
+      const nextWeekStart = new Date(state.viewAnchor);
+      nextWeekStart.setDate(state.viewAnchor.getDate() + 35);
+      state.viewYear = nextWeekStart.getFullYear();
+      state.viewMonth = nextWeekStart.getMonth() + 1;
+    }
+  } else {
+    state.viewMonth += delta;
+    if (state.viewMonth > 12) { state.viewMonth = 1; state.viewYear++; }
+    if (state.viewMonth < 1) { state.viewMonth = 12; state.viewYear--; }
+  }
   renderCalendar();
   if (state.auth === 'logged-in') loadCalendarEvents();
 }
@@ -494,6 +562,8 @@ function bindEvents() {
   document.getElementById('cal-next').addEventListener('click', () => changeMonth(1));
   document.getElementById('btn-today').addEventListener('click', () => {
     const now = new Date();
+    state.viewMode = 'rolling';
+    state.viewAnchor = getMondayOfWeek(now);
     state.viewYear = now.getFullYear();
     state.viewMonth = now.getMonth() + 1;
     renderCalendar();
