@@ -44,6 +44,7 @@ const state = {
   editingEvent: null,
   taskLists: [],
   activeTaskListId: '@default',
+  taskListCounts: {},
   tasks: [],
   completedTasks: [],
   tasksLoading: false,
@@ -503,6 +504,15 @@ async function loadTaskLists() {
     }
   }
   renderTaskListTabs();
+  // Fetch active-task counts for all lists in parallel (background)
+  if (state.taskLists.length > 1) {
+    Promise.all(
+      state.taskLists.map(l => call('tasks_get', l.id).then(r => ({ id: l.id, count: (r.tasks || []).length })))
+    ).then(results => {
+      results.forEach(({ id, count }) => { state.taskListCounts[id] = count; });
+      renderTaskListTabs();
+    });
+  }
 }
 
 function renderTaskListTabs() {
@@ -513,7 +523,19 @@ function renderTaskListTabs() {
   state.taskLists.forEach(list => {
     const btn = document.createElement('button');
     btn.className = 'task-list-tab' + (list.id === state.activeTaskListId ? ' active' : '');
-    btn.textContent = list.name;
+
+    const label = document.createElement('span');
+    label.textContent = list.name;
+    btn.appendChild(label);
+
+    const count = state.taskListCounts[list.id];
+    if (count != null && count > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'task-list-badge';
+      badge.textContent = count;
+      btn.appendChild(badge);
+    }
+
     btn.addEventListener('click', () => {
       state.activeTaskListId = list.id;
       renderTaskListTabs();
@@ -536,6 +558,9 @@ async function loadTasks() {
     state.tasksError = null;
     state.tasks = res.tasks || [];
     state.completedTasks = res.completed || [];
+    // Keep count for active list in sync from the already-loaded data
+    state.taskListCounts[state.activeTaskListId] = state.tasks.length;
+    renderTaskListTabs();
   }
   renderTasks();
 }
@@ -902,6 +927,7 @@ function bindEvents() {
     state.calendarVisibility = {};
     state.taskLists = [];
     state.activeTaskListId = '@default';
+    state.taskListCounts = {};
     state.tasks = [];
     state.completedTasks = [];
     state.tasksError = null;
