@@ -727,10 +727,11 @@ input[type="time"].form-input {
   border: none;
   cursor: pointer;
   color: var(--text-muted);
-  font-size: 13px;
-  padding: 2px 5px;
+  padding: 4px 6px;
   border-radius: 4px;
-  line-height: 1;
+  line-height: 0;
+  display: flex;
+  align-items: center;
   transition: background 0.12s, color 0.12s;
 }
 
