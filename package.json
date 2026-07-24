@@ -1,0 +1,17 @@
+{
+  "name": "home-app",
+  "version": "1.0.0",
+  "description": "Home dashboard with Google Calendar and Todo list",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "dependencies": {
+    "electron-store": "^7.0.3",
+    "googleapis": "^140.0.0"
+  },
+  "devDependencies": {
+    "electron": "^29.4.6"
+  }
+}
