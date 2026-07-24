@@ -81,6 +81,10 @@ async function init() {
     await loadCalendarEvents();
   }
 
+  setInterval(() => {
+    if (state.auth === 'logged-in') loadCalendarEvents();
+  }, 5 * 60 * 1000);
+
   renderCalendar();
   renderCalendarLegend();
   bindEvents();
@@ -105,6 +109,7 @@ function updateAuthUI() {
   authUser.style.display = 'none';
   authSetup.style.display = 'none';
   btnAddEvent.style.display = 'none';
+  document.getElementById('btn-refresh').style.display = 'none';
 
   if (state.auth === 'no-credentials') {
     authSetup.style.display = 'flex';
@@ -113,6 +118,7 @@ function updateAuthUI() {
   } else if (state.auth === 'logged-in') {
     authUser.style.display = 'flex';
     btnAddEvent.style.display = 'inline-flex';
+    document.getElementById('btn-refresh').style.display = 'inline-flex';
   }
 }
 
@@ -122,6 +128,7 @@ async function loadCalendarEvents() {
   state.eventsLoading = true;
   document.getElementById('cal-loading').style.display = 'block';
   document.getElementById('cal-error').style.display = 'none';
+  document.getElementById('btn-refresh').classList.add('spinning');
 
   let startStr, endStr;
   if (state.viewMode === 'rolling') {
@@ -140,6 +147,7 @@ async function loadCalendarEvents() {
 
   state.eventsLoading = false;
   document.getElementById('cal-loading').style.display = 'none';
+  document.getElementById('btn-refresh').classList.remove('spinning');
 
   if (res.error) {
     document.getElementById('cal-error').textContent = 'Error: ' + res.error;
@@ -716,6 +724,7 @@ function bindEvents() {
     call('window_open_external', 'https://console.cloud.google.com/');
   });
 
+  document.getElementById('btn-refresh').addEventListener('click', () => loadCalendarEvents());
   document.getElementById('btn-calendars').addEventListener('click', showCalendarModal);
   document.getElementById('modal-calendars-close').addEventListener('click', () => {
     document.getElementById('modal-calendars').style.display = 'none';
