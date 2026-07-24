@@ -118,7 +118,20 @@ async function loadCalendarEvents() {
   document.getElementById('cal-loading').style.display = 'block';
   document.getElementById('cal-error').style.display = 'none';
 
-  const res = await call('calendar_events', state.viewYear, state.viewMonth);
+  let startStr, endStr;
+  if (state.viewMode === 'rolling') {
+    const s = new Date(state.viewAnchor);
+    const e = new Date(state.viewAnchor);
+    e.setDate(e.getDate() + 35);
+    startStr = dateKey(s);
+    endStr = dateKey(e);
+  } else {
+    const { viewYear: y, viewMonth: m } = state;
+    startStr = dateKey(new Date(y, m - 2, 1));
+    endStr = dateKey(new Date(y, m + 1, 1));
+  }
+
+  const res = await call('calendar_events', startStr, endStr);
 
   state.eventsLoading = false;
   document.getElementById('cal-loading').style.display = 'none';

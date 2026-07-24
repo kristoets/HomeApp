@@ -162,16 +162,13 @@ class Api:
 
     # ── Calendar ──────────────────────────────────────────────────────────────
 
-    def calendar_events(self, year, month):
+    def calendar_events(self, start_str, end_str):
         svc = _get_google_client()
         if not svc:
             return {'error': 'Not authenticated'}
 
-        start = datetime(year, max(1, month - 1), 1, tzinfo=timezone.utc)
-        if month + 1 > 12:
-            end = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
-        else:
-            end = datetime(year, month + 1, 1, tzinfo=timezone.utc)
+        start = datetime.fromisoformat(start_str).replace(tzinfo=timezone.utc)
+        end = datetime.fromisoformat(end_str).replace(tzinfo=timezone.utc)
 
         try:
             # All visible calendars with their colors
