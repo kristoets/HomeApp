@@ -273,6 +273,20 @@ class Api:
         except Exception as e:
             return {'error': str(e)}
 
+    def calendar_move_event(self, event_id, source_calendar_id, dest_calendar_id):
+        svc = _get_google_client()
+        if not svc:
+            return {'error': 'Not authenticated'}
+        try:
+            ev = svc.events().move(
+                calendarId=source_calendar_id,
+                eventId=event_id,
+                destination=dest_calendar_id
+            ).execute()
+            return {'event': ev}
+        except Exception as e:
+            return {'error': str(e)}
+
     def calendar_delete_event(self, event_id, calendar_id):
         svc = _get_google_client()
         if not svc:

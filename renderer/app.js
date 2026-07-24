@@ -69,6 +69,7 @@ window._onAuthError = function (msg) {
 async function init() {
   updateClock();
   setInterval(updateClock, 60000);
+  initTimePickers();
 
   state.todos = await call('todos_get');
   renderTodos();
@@ -355,6 +356,35 @@ function formatTime(dateTimeStr) {
   return new Date(dateTimeStr).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
+function initTimePickers() {
+  ['event-start', 'event-end'].forEach(prefix => {
+    const hourSel = document.getElementById(`${prefix}-hour`);
+    const minSel = document.getElementById(`${prefix}-minute`);
+    for (let h = 0; h < 24; h++) {
+      const o = document.createElement('option');
+      o.value = o.textContent = String(h).padStart(2, '0');
+      hourSel.appendChild(o);
+    }
+    for (let m = 0; m < 60; m += 5) {
+      const o = document.createElement('option');
+      o.value = o.textContent = String(m).padStart(2, '0');
+      minSel.appendChild(o);
+    }
+  });
+}
+
+function setTimePicker(prefix, hhmm) {
+  const [h, m] = hhmm.split(':');
+  document.getElementById(`${prefix}-hour`).value = h.padStart(2, '0');
+  const rounded = String(Math.round(parseInt(m || '0') / 5) * 5 % 60).padStart(2, '0');
+  document.getElementById(`${prefix}-minute`).value = rounded;
+}
+
+function getTimePicker(prefix) {
+  return document.getElementById(`${prefix}-hour`).value + ':' +
+         document.getElementById(`${prefix}-minute`).value;
+}
+
 function localDateTimeStr(dateStr, timeStr) {
   const offset = -new Date().getTimezoneOffset(); // minutes ahead of UTC
   const sign = offset >= 0 ? '+' : '-';
@@ -610,55 +640,50 @@ function showEventModal(prefillDate, editEvent = null) {
   document.getElementById('modal-event-title').textContent = isEdit ? 'Edit Event' : 'New Calendar Event';
   document.getElementById('modal-event-save').textContent = isEdit ? 'Update' : 'Save';
   document.getElementById('event-error').style.display = 'none';
-  document.getElementById('event-calendar-section').style.display = isEdit ? 'none' : '';
+
+  // Calendar selector — always visible; pre-select current calendar when editing
+  const calList = document.getElementById('event-calendar-list');
+  calList.innerHTML = '';
+  const visible = state.calendars.filter(c => state.calendarVisibility[c.id] !== false);
+  visible.forEach((cal, i) => {
+    const label = document.createElement('label');
+    label.className = 'calendar-radio-row';
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'event-calendar';
+    radio.value = cal.id;
+    radio.checked = isEdit ? cal.id === editEvent._calendarId : (cal.primary || i === 0);
+    const dot = document.createElement('span');
+    dot.className = 'legend-dot';
+    dot.style.background = cal.color;
+    const name = document.createElement('span');
+    name.textContent = cal.name;
+    label.appendChild(radio);
+    label.appendChild(dot);
+    label.appendChild(name);
+    calList.appendChild(label);
+  });
+
+  const allDay = isEdit ? !editEvent.start?.dateTime : false;
+  document.getElementById('event-allday').checked = allDay;
+  document.getElementById('event-time-section').style.display = allDay ? 'none' : '';
 
   if (isEdit) {
-    const allDay = !editEvent.start?.dateTime;
-    document.getElementById('event-allday').checked = allDay;
     document.getElementById('event-title').value = editEvent.summary || '';
-    document.getElementById('event-start-time').style.display = allDay ? 'none' : '';
-    document.getElementById('event-end-time').style.display = allDay ? 'none' : '';
     if (allDay) {
       document.getElementById('event-date').value = editEvent.start.date;
     } else {
       const s = new Date(editEvent.start.dateTime);
       const e2 = new Date(editEvent.end?.dateTime || editEvent.start.dateTime);
       document.getElementById('event-date').value = dateKey(s);
-      document.getElementById('event-start-time').value =
-        s.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-      document.getElementById('event-end-time').value =
-        e2.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      setTimePicker('event-start', s.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
+      setTimePicker('event-end', e2.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
     }
   } else {
     document.getElementById('event-title').value = '';
     document.getElementById('event-date').value = prefillDate || dateKey(new Date());
-    document.getElementById('event-start-time').value = '09:00';
-    document.getElementById('event-end-time').value = '10:00';
-    document.getElementById('event-allday').checked = false;
-    document.getElementById('event-start-time').style.display = '';
-    document.getElementById('event-end-time').style.display = '';
-
-    const calList = document.getElementById('event-calendar-list');
-    calList.innerHTML = '';
-    const visible = state.calendars.filter(c => state.calendarVisibility[c.id] !== false);
-    visible.forEach((cal, i) => {
-      const label = document.createElement('label');
-      label.className = 'calendar-radio-row';
-      const radio = document.createElement('input');
-      radio.type = 'radio';
-      radio.name = 'event-calendar';
-      radio.value = cal.id;
-      radio.checked = cal.primary || i === 0;
-      const dot = document.createElement('span');
-      dot.className = 'legend-dot';
-      dot.style.background = cal.color;
-      const name = document.createElement('span');
-      name.textContent = cal.name;
-      label.appendChild(radio);
-      label.appendChild(dot);
-      label.appendChild(name);
-      calList.appendChild(label);
-    });
+    setTimePicker('event-start', '09:00');
+    setTimePicker('event-end', '10:00');
   }
 
   document.getElementById('modal-event').style.display = 'flex';
@@ -676,14 +701,15 @@ async function deleteEvent(ev) {
 async function saveEvent() {
   const title = document.getElementById('event-title').value.trim();
   const date = document.getElementById('event-date').value;
-  const startTime = document.getElementById('event-start-time').value;
-  const endTime = document.getElementById('event-end-time').value;
   const allDay = document.getElementById('event-allday').checked;
   const errEl = document.getElementById('event-error');
 
   if (!title) { showError(errEl, 'Title is required.'); return; }
   if (!date) { showError(errEl, 'Date is required.'); return; }
   errEl.style.display = 'none';
+
+  const startTime = getTimePicker('event-start');
+  const endTime = getTimePicker('event-end');
 
   let startVal, endVal;
   if (allDay) {
@@ -692,22 +718,26 @@ async function saveEvent() {
     endDate.setDate(endDate.getDate() + 1);
     endVal = dateKey(endDate);
   } else {
-    startVal = localDateTimeStr(date, startTime || '00:00');
-    endVal = localDateTimeStr(date, endTime || startTime || '01:00');
+    startVal = localDateTimeStr(date, startTime);
+    endVal = localDateTimeStr(date, endTime);
   }
 
+  const selectedCalId = document.querySelector('input[name="event-calendar"]:checked')?.value || 'primary';
   const btn = document.getElementById('modal-event-save');
   btn.textContent = 'Saving…';
   btn.disabled = true;
 
   let res;
   if (state.editingEvent) {
-    res = await call('calendar_update_event',
-      state.editingEvent.id, state.editingEvent._calendarId,
-      title, startVal, endVal, allDay);
+    let targetCalId = state.editingEvent._calendarId;
+    if (selectedCalId !== targetCalId) {
+      const moveRes = await call('calendar_move_event', state.editingEvent.id, targetCalId, selectedCalId);
+      if (moveRes.error) { showError(errEl, moveRes.error); btn.textContent = 'Update'; btn.disabled = false; return; }
+      targetCalId = selectedCalId;
+    }
+    res = await call('calendar_update_event', state.editingEvent.id, targetCalId, title, startVal, endVal, allDay);
   } else {
-    const calendarId = document.querySelector('input[name="event-calendar"]:checked')?.value || 'primary';
-    res = await call('calendar_create_event', title, startVal, endVal, allDay, calendarId);
+    res = await call('calendar_create_event', title, startVal, endVal, allDay, selectedCalId);
   }
 
   btn.textContent = state.editingEvent ? 'Update' : 'Save';
@@ -816,9 +846,7 @@ function bindEvents() {
     document.getElementById('modal-event').style.display = 'none';
   });
   document.getElementById('event-allday').addEventListener('change', (e) => {
-    const hide = e.target.checked;
-    document.getElementById('event-start-time').style.display = hide ? 'none' : '';
-    document.getElementById('event-end-time').style.display = hide ? 'none' : '';
+    document.getElementById('event-time-section').style.display = e.target.checked ? 'none' : '';
   });
 
   document.getElementById('modal-creds-save').addEventListener('click', saveCreds);

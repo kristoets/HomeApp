@@ -209,6 +209,35 @@ html, body {
 }
 
 /* ── Calendar toggle modal rows ───────────────────────────────────────────── */
+.time-picker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.time-select {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text-primary);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  color-scheme: dark;
+}
+
+.time-select:focus { border-color: var(--accent); }
+
+.time-colon {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
 .event-calendar-list {
   display: flex;
   flex-direction: column;

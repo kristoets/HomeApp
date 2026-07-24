@@ -82,13 +82,23 @@
         <input type="text" id="event-title" class="form-input" placeholder="Event title" />
         <label class="form-label">Date *</label>
         <input type="date" id="event-date" class="form-input" />
-        <label class="form-label">Start time</label>
-        <input type="time" id="event-start-time" class="form-input" />
-        <label class="form-label">End time</label>
-        <input type="time" id="event-end-time" class="form-input" />
         <label class="form-check">
           <input type="checkbox" id="event-allday" /> All-day event
         </label>
+        <div id="event-time-section">
+          <label class="form-label">Start time</label>
+          <div class="time-picker">
+            <select id="event-start-hour" class="time-select"></select>
+            <span class="time-colon">:</span>
+            <select id="event-start-minute" class="time-select"></select>
+          </div>
+          <label class="form-label">End time</label>
+          <div class="time-picker">
+            <select id="event-end-hour" class="time-select"></select>
+            <span class="time-colon">:</span>
+            <select id="event-end-minute" class="time-select"></select>
+          </div>
+        </div>
         <div id="event-error" class="form-error" style="display:none"></div>
       </div>
       <div class="modal-footer">
