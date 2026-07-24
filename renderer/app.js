@@ -41,6 +41,7 @@ const state = {
   eventsLoading: false,
   calendars: [],
   calendarVisibility: {},
+  editingEvent: null,
   todos: [],
   dragSrc: null
 };
@@ -385,6 +386,10 @@ function showDayPopup(e, dateStr, events) {
         el.style.borderLeft = `3px solid ${ev._displayColor}`;
         el.style.paddingLeft = '8px';
       }
+
+      const infoEl = document.createElement('div');
+      infoEl.className = 'popup-event-info';
+
       const timeEl = document.createElement('div');
       timeEl.className = 'popup-event-time';
       if (ev.start?.dateTime) {
@@ -395,15 +400,42 @@ function showDayPopup(e, dateStr, events) {
       const titleEl = document.createElement('div');
       titleEl.className = 'popup-event-title';
       titleEl.textContent = ev.summary || '(no title)';
-      el.appendChild(timeEl);
-      el.appendChild(titleEl);
+      infoEl.appendChild(timeEl);
+      infoEl.appendChild(titleEl);
       if (ev._calendarName) {
         const calEl = document.createElement('div');
         calEl.className = 'popup-event-calendar';
         calEl.textContent = ev._calendarName;
         if (ev._displayColor) calEl.style.color = ev._displayColor;
-        el.appendChild(calEl);
+        infoEl.appendChild(calEl);
       }
+
+      const actionsEl = document.createElement('div');
+      actionsEl.className = 'popup-event-actions';
+
+      const editBtn = document.createElement('button');
+      editBtn.className = 'popup-action-btn';
+      editBtn.title = 'Edit';
+      editBtn.textContent = '✏';
+      editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('day-popup').style.display = 'none';
+        showEventModal(null, ev);
+      });
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'popup-action-btn popup-action-btn-danger';
+      delBtn.title = 'Delete';
+      delBtn.textContent = '🗑';
+      delBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await deleteEvent(ev);
+      });
+
+      actionsEl.appendChild(editBtn);
+      actionsEl.appendChild(delBtn);
+      el.appendChild(infoEl);
+      el.appendChild(actionsEl);
       eventsEl.appendChild(el);
     }
   }
@@ -571,39 +603,74 @@ function onDragEnd() {
 }
 
 // ── Event Modal ────────────────────────────────────────────────────────────
-function showEventModal(prefillDate) {
-  const modal = document.getElementById('modal-event');
-  document.getElementById('event-title').value = '';
-  document.getElementById('event-date').value = prefillDate || dateKey(new Date());
-  document.getElementById('event-start-time').value = '09:00';
-  document.getElementById('event-end-time').value = '10:00';
-  document.getElementById('event-allday').checked = false;
+function showEventModal(prefillDate, editEvent = null) {
+  state.editingEvent = editEvent;
+  const isEdit = !!editEvent;
+
+  document.getElementById('modal-event-title').textContent = isEdit ? 'Edit Event' : 'New Calendar Event';
+  document.getElementById('modal-event-save').textContent = isEdit ? 'Update' : 'Save';
   document.getElementById('event-error').style.display = 'none';
+  document.getElementById('event-calendar-section').style.display = isEdit ? 'none' : '';
 
-  const calList = document.getElementById('event-calendar-list');
-  calList.innerHTML = '';
-  const visible = state.calendars.filter(c => state.calendarVisibility[c.id] !== false);
-  visible.forEach((cal, i) => {
-    const label = document.createElement('label');
-    label.className = 'calendar-radio-row';
-    const radio = document.createElement('input');
-    radio.type = 'radio';
-    radio.name = 'event-calendar';
-    radio.value = cal.id;
-    radio.checked = cal.primary || i === 0;
-    const dot = document.createElement('span');
-    dot.className = 'legend-dot';
-    dot.style.background = cal.color;
-    const name = document.createElement('span');
-    name.textContent = cal.name;
-    label.appendChild(radio);
-    label.appendChild(dot);
-    label.appendChild(name);
-    calList.appendChild(label);
-  });
+  if (isEdit) {
+    const allDay = !editEvent.start?.dateTime;
+    document.getElementById('event-allday').checked = allDay;
+    document.getElementById('event-title').value = editEvent.summary || '';
+    document.getElementById('event-start-time').style.display = allDay ? 'none' : '';
+    document.getElementById('event-end-time').style.display = allDay ? 'none' : '';
+    if (allDay) {
+      document.getElementById('event-date').value = editEvent.start.date;
+    } else {
+      const s = new Date(editEvent.start.dateTime);
+      const e2 = new Date(editEvent.end?.dateTime || editEvent.start.dateTime);
+      document.getElementById('event-date').value = dateKey(s);
+      document.getElementById('event-start-time').value =
+        s.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      document.getElementById('event-end-time').value =
+        e2.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    }
+  } else {
+    document.getElementById('event-title').value = '';
+    document.getElementById('event-date').value = prefillDate || dateKey(new Date());
+    document.getElementById('event-start-time').value = '09:00';
+    document.getElementById('event-end-time').value = '10:00';
+    document.getElementById('event-allday').checked = false;
+    document.getElementById('event-start-time').style.display = '';
+    document.getElementById('event-end-time').style.display = '';
 
-  modal.style.display = 'flex';
+    const calList = document.getElementById('event-calendar-list');
+    calList.innerHTML = '';
+    const visible = state.calendars.filter(c => state.calendarVisibility[c.id] !== false);
+    visible.forEach((cal, i) => {
+      const label = document.createElement('label');
+      label.className = 'calendar-radio-row';
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = 'event-calendar';
+      radio.value = cal.id;
+      radio.checked = cal.primary || i === 0;
+      const dot = document.createElement('span');
+      dot.className = 'legend-dot';
+      dot.style.background = cal.color;
+      const name = document.createElement('span');
+      name.textContent = cal.name;
+      label.appendChild(radio);
+      label.appendChild(dot);
+      label.appendChild(name);
+      calList.appendChild(label);
+    });
+  }
+
+  document.getElementById('modal-event').style.display = 'flex';
   document.getElementById('event-title').focus();
+}
+
+async function deleteEvent(ev) {
+  if (!confirm(`Delete "${ev.summary || 'this event'}"?`)) return;
+  document.getElementById('day-popup').style.display = 'none';
+  const res = await call('calendar_delete_event', ev.id, ev._calendarId);
+  if (res.error) { alert('Delete failed: ' + res.error); return; }
+  await loadCalendarEvents();
 }
 
 async function saveEvent() {
@@ -633,14 +700,22 @@ async function saveEvent() {
   btn.textContent = 'Saving…';
   btn.disabled = true;
 
-  const calendarId = document.querySelector('input[name="event-calendar"]:checked')?.value || 'primary';
-  const res = await call('calendar_create_event', title, startVal, endVal, allDay, calendarId);
+  let res;
+  if (state.editingEvent) {
+    res = await call('calendar_update_event',
+      state.editingEvent.id, state.editingEvent._calendarId,
+      title, startVal, endVal, allDay);
+  } else {
+    const calendarId = document.querySelector('input[name="event-calendar"]:checked')?.value || 'primary';
+    res = await call('calendar_create_event', title, startVal, endVal, allDay, calendarId);
+  }
 
-  btn.textContent = 'Save Event';
+  btn.textContent = state.editingEvent ? 'Update' : 'Save';
   btn.disabled = false;
 
   if (res.error) { showError(errEl, res.error); return; }
 
+  state.editingEvent = null;
   document.getElementById('modal-event').style.display = 'none';
   await loadCalendarEvents();
 }
@@ -733,9 +808,11 @@ function bindEvents() {
   document.getElementById('btn-add-event').addEventListener('click', () => showEventModal(null));
   document.getElementById('modal-event-save').addEventListener('click', saveEvent);
   document.getElementById('modal-event-close').addEventListener('click', () => {
+    state.editingEvent = null;
     document.getElementById('modal-event').style.display = 'none';
   });
   document.getElementById('modal-event-cancel').addEventListener('click', () => {
+    state.editingEvent = null;
     document.getElementById('modal-event').style.display = 'none';
   });
   document.getElementById('event-allday').addEventListener('change', (e) => {

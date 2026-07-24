@@ -691,7 +691,12 @@ input[type="time"].form-input {
   background: var(--bg-hover);
   border-radius: 6px;
   font-size: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
 }
+
+.popup-event-info { flex: 1; min-width: 0; }
 
 .popup-event-time {
   font-size: 10px;
@@ -706,5 +711,30 @@ input[type="time"].form-input {
   color: var(--text-muted);
   margin-top: 2px;
 }
+
+.popup-event-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.popup-event:hover .popup-event-actions { opacity: 1; }
+
+.popup-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: background 0.12s, color 0.12s;
+}
+
+.popup-action-btn:hover { background: var(--bg-active); color: var(--text-primary); }
+.popup-action-btn-danger:hover { color: var(--danger); }
 
 .popup-no-events { font-size: 12px; color: var(--text-muted); padding: 8px 0; }

@@ -236,6 +236,7 @@ class Api:
                         if ev.get('colorId') else cal_bg
                     )
                     ev['_calendarName'] = cal_name
+                    ev['_calendarId'] = cal_id
                     all_events.append(ev)
 
             all_events.sort(key=lambda ev: (
@@ -268,6 +269,30 @@ class Api:
             }
         try:
             ev = svc.events().insert(calendarId=calendar_id, body=body).execute()
+            return {'event': ev}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def calendar_delete_event(self, event_id, calendar_id):
+        svc = _get_google_client()
+        if not svc:
+            return {'error': 'Not authenticated'}
+        try:
+            svc.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+            return {'success': True}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def calendar_update_event(self, event_id, calendar_id, title, start, end, all_day):
+        svc = _get_google_client()
+        if not svc:
+            return {'error': 'Not authenticated'}
+        if all_day:
+            body = {'summary': title, 'start': {'date': start}, 'end': {'date': end}}
+        else:
+            body = {'summary': title, 'start': {'dateTime': start}, 'end': {'dateTime': end}}
+        try:
+            ev = svc.events().patch(calendarId=calendar_id, eventId=event_id, body=body).execute()
             return {'event': ev}
         except Exception as e:
             return {'error': str(e)}
