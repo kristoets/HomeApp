@@ -19,10 +19,12 @@ APP_DIR.mkdir(exist_ok=True)
 
 TOKEN_FILE = APP_DIR / 'token.json'
 CREDS_FILE = APP_DIR / 'credentials.json'
-TODOS_FILE = APP_DIR / 'todos.json'
 CAL_VISIBILITY_FILE = APP_DIR / 'calendar_visibility.json'
 
-SCOPES = ['https://www.googleapis.com/auth/calendar']
+SCOPES = [
+    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/tasks',
+]
 REDIRECT_PORT = 3141
 REDIRECT_URI = f'http://localhost:{REDIRECT_PORT}/oauth2callback'
 
@@ -35,14 +37,11 @@ def _load_credentials_json():
         return json.loads(CREDS_FILE.read_text())
     return None
 
-def _get_google_client():
-    """Return authenticated Google Calendar service or None."""
+def _get_creds():
+    """Return valid Google credentials or None."""
     creds_json = _load_credentials_json()
-    if not creds_json:
+    if not creds_json or not TOKEN_FILE.exists():
         return None
-    if not TOKEN_FILE.exists():
-        return None
-
     token = json.loads(TOKEN_FILE.read_text())
     info = creds_json.get('installed') or creds_json.get('web')
     creds = Credentials(
@@ -64,8 +63,15 @@ def _get_google_client():
         except Exception:
             TOKEN_FILE.unlink(missing_ok=True)
             return None
+    return creds
 
-    return build('calendar', 'v3', credentials=creds, cache_discovery=False)
+def _get_google_client():
+    creds = _get_creds()
+    return build('calendar', 'v3', credentials=creds, cache_discovery=False) if creds else None
+
+def _get_tasks_client():
+    creds = _get_creds()
+    return build('tasks', 'v1', credentials=creds, cache_discovery=False) if creds else None
 
 
 # ── PyWebView API class ───────────────────────────────────────────────────────
@@ -311,16 +317,85 @@ class Api:
         except Exception as e:
             return {'error': str(e)}
 
-    # ── Todos ─────────────────────────────────────────────────────────────────
+    # ── Google Tasks ──────────────────────────────────────────────────────────
 
-    def todos_get(self):
-        if TODOS_FILE.exists():
-            return json.loads(TODOS_FILE.read_text())
-        return []
+    def tasks_get(self):
+        svc = _get_tasks_client()
+        if not svc:
+            return {'error': 'not_authenticated', 'tasks': [], 'completed': []}
+        try:
+            result = svc.tasks().list(
+                tasklist='@default',
+                showCompleted=True,
+                showHidden=True,
+                maxResults=200
+            ).execute()
+            all_tasks = result.get('items', [])
+            active = [t for t in all_tasks if t.get('status') == 'needsAction']
+            completed = sorted(
+                [t for t in all_tasks if t.get('status') == 'completed'],
+                key=lambda t: t.get('completed', ''),
+                reverse=True
+            )[:5]
+            return {'tasks': active, 'completed': completed}
+        except Exception as e:
+            return {'error': str(e), 'tasks': [], 'completed': []}
 
-    def todos_set(self, todos):
-        TODOS_FILE.write_text(json.dumps(todos))
-        return {'success': True}
+    def tasks_add(self, title):
+        svc = _get_tasks_client()
+        if not svc:
+            return {'error': 'not_authenticated'}
+        try:
+            task = svc.tasks().insert(tasklist='@default', body={'title': title}).execute()
+            return {'task': task}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def tasks_complete(self, task_id, done):
+        svc = _get_tasks_client()
+        if not svc:
+            return {'error': 'not_authenticated'}
+        try:
+            body = {'status': 'completed'} if done else {'status': 'needsAction', 'completed': None}
+            task = svc.tasks().patch(tasklist='@default', task=task_id, body=body).execute()
+            return {'task': task}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def tasks_delete(self, task_id):
+        svc = _get_tasks_client()
+        if not svc:
+            return {'error': 'not_authenticated'}
+        try:
+            svc.tasks().delete(tasklist='@default', task=task_id).execute()
+            return {'success': True}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def tasks_reorder(self, task_id, previous_id):
+        svc = _get_tasks_client()
+        if not svc:
+            return {'error': 'not_authenticated'}
+        try:
+            kwargs = {'tasklist': '@default', 'task': task_id}
+            if previous_id:
+                kwargs['previous'] = previous_id
+            svc.tasks().move(**kwargs).execute()
+            return {'success': True}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def tasks_update_title(self, task_id, title):
+        svc = _get_tasks_client()
+        if not svc:
+            return {'error': 'not_authenticated'}
+        try:
+            task = svc.tasks().patch(
+                tasklist='@default', task=task_id, body={'title': title}
+            ).execute()
+            return {'task': task}
+        except Exception as e:
+            return {'error': str(e)}
 
     # ── Window ────────────────────────────────────────────────────────────────
 

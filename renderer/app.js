@@ -42,11 +42,12 @@ const state = {
   calendars: [],
   calendarVisibility: {},
   editingEvent: null,
-  todos: [],
+  tasks: [],
+  completedTasks: [],
+  tasksLoading: false,
+  tasksError: null,
   dragSrc: null
 };
-
-const MAX_DONE = 5;
 
 // ── Global callbacks from Python ───────────────────────────────────────────
 window._onAuthSuccess = async function () {
@@ -54,6 +55,7 @@ window._onAuthSuccess = async function () {
   updateAuthUI();
   await loadCalendarList();
   loadCalendarEvents();
+  loadTasks();
 };
 
 window._onAuthExpired = function () {
@@ -71,9 +73,6 @@ async function init() {
   setInterval(updateClock, 60000);
   initTimePickers();
 
-  state.todos = await call('todos_get');
-  renderTodos();
-
   const res = await call('auth_status');
   state.auth = res.status;
   updateAuthUI();
@@ -81,10 +80,16 @@ async function init() {
   if (state.auth === 'logged-in') {
     await loadCalendarList();
     await loadCalendarEvents();
+    await loadTasks();
+  } else {
+    renderTasks();
   }
 
   setInterval(() => {
-    if (state.auth === 'logged-in') loadCalendarEvents();
+    if (state.auth === 'logged-in') {
+      loadCalendarEvents();
+      loadTasks();
+    }
   }, 5 * 60 * 1000);
 
   renderCalendar();
@@ -484,39 +489,59 @@ function showDayPopup(e, dateStr, events) {
   popup.style.top = top + 'px';
 }
 
-// ── Todos ──────────────────────────────────────────────────────────────────
-function saveTodos() {
-  call('todos_set', state.todos);
+// ── Google Tasks ────────────────────────────────────────────────────────────
+async function loadTasks() {
+  if (state.tasksLoading) return;
+  state.tasksLoading = true;
+  const res = await call('tasks_get');
+  state.tasksLoading = false;
+  if (res.error) {
+    state.tasksError = res.error;
+    state.tasks = [];
+    state.completedTasks = [];
+  } else {
+    state.tasksError = null;
+    state.tasks = res.tasks || [];
+    state.completedTasks = res.completed || [];
+  }
+  renderTasks();
 }
 
-function renderTodos() {
+function renderTasks() {
   const list = document.getElementById('todo-list');
   list.innerHTML = '';
 
-  const active = state.todos
-    .filter(t => !t.done)
-    .sort((a, b) => a.order - b.order);
+  if (state.auth !== 'logged-in') {
+    const msg = document.createElement('div');
+    msg.className = 'tasks-message';
+    msg.textContent = 'Connect Google Calendar to sync tasks.';
+    list.appendChild(msg);
+    return;
+  }
 
-  const done = state.todos
-    .filter(t => t.done)
-    .sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0))
-    .slice(0, MAX_DONE);
+  if (state.tasksError) {
+    const msg = document.createElement('div');
+    msg.className = 'tasks-message tasks-error';
+    msg.textContent = 'Could not load tasks. Try reconnecting your Google account.';
+    list.appendChild(msg);
+    return;
+  }
 
-  active.forEach((todo) => list.appendChild(makeTodoEl(todo, false)));
+  state.tasks.forEach(task => list.appendChild(makeTaskEl(task, false)));
 
-  if (done.length > 0) {
+  if (state.completedTasks.length > 0) {
     const divider = document.createElement('div');
     divider.className = 'todo-done-divider';
-    divider.textContent = `Completed (${done.length})`;
+    divider.textContent = `Completed (${state.completedTasks.length})`;
     list.appendChild(divider);
-    done.forEach((todo) => list.appendChild(makeTodoEl(todo, true)));
+    state.completedTasks.forEach(task => list.appendChild(makeTaskEl(task, true)));
   }
 }
 
-function makeTodoEl(todo, isDone) {
+function makeTaskEl(task, isDone) {
   const item = document.createElement('div');
   item.className = 'todo-item' + (isDone ? ' done' : '');
-  item.dataset.id = todo.id;
+  item.dataset.id = task.id;
   item.draggable = !isDone;
 
   if (!isDone) {
@@ -530,19 +555,22 @@ function makeTodoEl(todo, isDone) {
   const check = document.createElement('div');
   check.className = 'todo-checkbox' + (isDone ? ' checked' : '');
   check.title = isDone ? 'Mark as not done' : 'Mark as done';
-  check.addEventListener('click', () => toggleTodo(todo.id));
+  check.addEventListener('click', () => toggleTask(task.id, isDone));
   item.appendChild(check);
 
   const text = document.createElement('div');
   text.className = 'todo-text';
-  text.textContent = todo.text;
+  text.textContent = task.title || '';
+  if (!isDone) {
+    text.addEventListener('dblclick', () => startEditTask(item, text, task));
+  }
   item.appendChild(text);
 
   const del = document.createElement('button');
   del.className = 'todo-delete';
   del.textContent = '✕';
   del.title = 'Delete';
-  del.addEventListener('click', (e) => { e.stopPropagation(); deleteTodo(todo.id); });
+  del.addEventListener('click', (e) => { e.stopPropagation(); deleteTask(task.id); });
   item.appendChild(del);
 
   if (!isDone) {
@@ -556,38 +584,47 @@ function makeTodoEl(todo, isDone) {
   return item;
 }
 
-function addTodo(text) {
-  text = text.trim();
-  if (!text) return;
-  const maxOrder = state.todos.filter(t => !t.done).reduce((m, t) => Math.max(m, t.order || 0), -1);
-  state.todos.push({
-    id: Date.now() + Math.random(),
-    text,
-    done: false,
-    doneAt: null,
-    order: maxOrder + 1
+function startEditTask(_item, textEl, task) {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'todo-text-edit';
+  input.value = task.title || '';
+  textEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let saved = false;
+  const save = async () => {
+    if (saved) return;
+    saved = true;
+    const newTitle = input.value.trim();
+    if (newTitle && newTitle !== task.title) {
+      await call('tasks_update_title', task.id, newTitle);
+    }
+    await loadTasks();
+  };
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); save(); }
+    if (e.key === 'Escape') { saved = true; loadTasks(); }
   });
-  saveTodos();
-  renderTodos();
 }
 
-function toggleTodo(id) {
-  const todo = state.todos.find(t => t.id === id);
-  if (!todo) return;
-  todo.done = !todo.done;
-  todo.doneAt = todo.done ? Date.now() : null;
-  if (!todo.done) {
-    const maxOrder = state.todos.filter(t => !t.done).reduce((m, t) => Math.max(m, t.order || 0), -1);
-    todo.order = maxOrder + 1;
-  }
-  saveTodos();
-  renderTodos();
+async function addTask(title) {
+  title = title.trim();
+  if (!title) return;
+  await call('tasks_add', title);
+  await loadTasks();
 }
 
-function deleteTodo(id) {
-  state.todos = state.todos.filter(t => t.id !== id);
-  saveTodos();
-  renderTodos();
+async function toggleTask(taskId, isDone) {
+  await call('tasks_complete', taskId, !isDone);
+  await loadTasks();
+}
+
+async function deleteTask(taskId) {
+  await call('tasks_delete', taskId);
+  await loadTasks();
 }
 
 // ── Drag & Drop ────────────────────────────────────────────────────────────
@@ -606,24 +643,29 @@ function onDragOver(e) {
 
 function onDragLeave() { this.classList.remove('drag-over'); }
 
-function onDrop(e) {
+async function onDrop(e) {
   e.preventDefault();
   this.classList.remove('drag-over');
-  const srcId = parseFloat(state.dragSrc);
-  const dstId = parseFloat(this.dataset.id);
+  const srcId = state.dragSrc;
+  const dstId = this.dataset.id;
   if (srcId === dstId) return;
 
-  const active = state.todos.filter(t => !t.done).sort((a, b) => a.order - b.order);
+  const active = [...state.tasks];
   const srcIdx = active.findIndex(t => t.id === srcId);
   const dstIdx = active.findIndex(t => t.id === dstId);
   if (srcIdx < 0 || dstIdx < 0) return;
 
-  active.splice(srcIdx, 1);
-  active.splice(dstIdx, 0, state.todos.find(t => t.id === srcId));
-  active.forEach((t, i) => { const o = state.todos.find(x => x.id === t.id); if (o) o.order = i; });
+  const [moved] = active.splice(srcIdx, 1);
+  active.splice(dstIdx, 0, moved);
 
-  saveTodos();
-  renderTodos();
+  const newIdx = active.findIndex(t => t.id === srcId);
+  const previousId = newIdx > 0 ? active[newIdx - 1].id : null;
+
+  state.tasks = active;
+  renderTasks();
+
+  await call('tasks_reorder', srcId, previousId);
+  await loadTasks();
 }
 
 function onDragEnd() {
@@ -825,10 +867,14 @@ function bindEvents() {
     state.events = [];
     state.calendars = [];
     state.calendarVisibility = {};
+    state.tasks = [];
+    state.completedTasks = [];
+    state.tasksError = null;
     document.getElementById('btn-calendars').style.display = 'none';
     document.getElementById('calendar-legend').innerHTML = '';
     updateAuthUI();
     renderCalendar();
+    renderTasks();
   });
 
   document.getElementById('btn-setup').addEventListener('click', showCredsModal);
@@ -882,12 +928,12 @@ function bindEvents() {
 
   const todoInput = document.getElementById('todo-input');
   document.getElementById('btn-add-todo').addEventListener('click', () => {
-    addTodo(todoInput.value);
+    addTask(todoInput.value);
     todoInput.value = '';
   });
   todoInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
-      addTodo(todoInput.value);
+      addTask(todoInput.value);
       todoInput.value = '';
     }
   });

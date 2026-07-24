@@ -768,3 +768,31 @@ input[type="time"].form-input {
 .popup-action-btn-danger:hover { color: var(--danger); }
 
 .popup-no-events { font-size: 12px; color: var(--text-muted); padding: 8px 0; }
+
+/* ── Tasks ─────────────────────────────────────────────────────────────────── */
+.tasks-message {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 16px 0 8px;
+  text-align: center;
+}
+
+.tasks-error {
+  font-size: 13px;
+  color: var(--warning);
+  padding: 12px 0 8px;
+  text-align: center;
+}
+
+.todo-text-edit {
+  flex: 1;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font);
+  padding: 2px 6px;
+  outline: none;
+  min-width: 0;
+}
