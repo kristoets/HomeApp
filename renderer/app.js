@@ -571,6 +571,29 @@ function showEventModal(prefillDate) {
   document.getElementById('event-end-time').value = '10:00';
   document.getElementById('event-allday').checked = false;
   document.getElementById('event-error').style.display = 'none';
+
+  const calList = document.getElementById('event-calendar-list');
+  calList.innerHTML = '';
+  const visible = state.calendars.filter(c => state.calendarVisibility[c.id] !== false);
+  visible.forEach((cal, i) => {
+    const label = document.createElement('label');
+    label.className = 'calendar-radio-row';
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'event-calendar';
+    radio.value = cal.id;
+    radio.checked = cal.primary || i === 0;
+    const dot = document.createElement('span');
+    dot.className = 'legend-dot';
+    dot.style.background = cal.color;
+    const name = document.createElement('span');
+    name.textContent = cal.name;
+    label.appendChild(radio);
+    label.appendChild(dot);
+    label.appendChild(name);
+    calList.appendChild(label);
+  });
+
   modal.style.display = 'flex';
   document.getElementById('event-title').focus();
 }
@@ -602,7 +625,8 @@ async function saveEvent() {
   btn.textContent = 'Saving…';
   btn.disabled = true;
 
-  const res = await call('calendar_create_event', title, startVal, endVal, allDay);
+  const calendarId = document.querySelector('input[name="event-calendar"]:checked')?.value || 'primary';
+  const res = await call('calendar_create_event', title, startVal, endVal, allDay, calendarId);
 
   btn.textContent = 'Save Event';
   btn.disabled = false;

@@ -170,7 +170,12 @@ class Api:
         try:
             res = svc.calendarList().list().execute()
             return {'calendars': [
-                {'id': c['id'], 'name': c.get('summary', ''), 'color': c.get('backgroundColor', '#7c6af7')}
+                {
+                    'id': c['id'],
+                    'name': c.get('summary', ''),
+                    'color': c.get('backgroundColor', '#7c6af7'),
+                    'primary': c.get('primary', False)
+                }
                 for c in res.get('items', []) if c.get('selected', True)
             ]}
         except Exception as e:
@@ -244,12 +249,11 @@ class Api:
                     _window.evaluate_js('window._onAuthExpired && window._onAuthExpired()')
             return {'error': str(e)}
 
-    def calendar_create_event(self, title, start, end, all_day):
+    def calendar_create_event(self, title, start, end, all_day, calendar_id='primary'):
         svc = _get_google_client()
         if not svc:
             return {'error': 'Not authenticated'}
 
-        tz = datetime.now().astimezone().tzname()
         if all_day:
             body = {
                 'summary': title,
@@ -263,7 +267,7 @@ class Api:
                 'end': {'dateTime': end, 'timeZone': 'UTC'}
             }
         try:
-            ev = svc.events().insert(calendarId='primary', body=body).execute()
+            ev = svc.events().insert(calendarId=calendar_id, body=body).execute()
             return {'event': ev}
         except Exception as e:
             return {'error': str(e)}
