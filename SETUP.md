@@ -70,15 +70,56 @@ After approving, switch back to the app — it connects automatically.
 
 ---
 
+## Features
+
+### Calendar
+- **Rolling 5-week view** by default — current week at the top, 4 weeks ahead below
+- **← / →** navigation: from the rolling view, ← shows the full month of the current anchor week, → shows the full month after the last visible week. From a month view, navigates one month at a time
+- **Today** button returns to the rolling 5-week view anchored on the current week
+- Events from **all your Google Calendars** are shown simultaneously with their correct colors
+- **Calendars button** — toggle which calendars are visible; preferences saved locally
+- Color dot + name legend shows all currently visible calendars
+- **Auto-refresh** every 5 minutes; **↻ button** for immediate manual refresh
+
+### Events
+- **Click a day** to see all events for that day in a popup
+- **+ Event** button or click a day to add a new event — choose title, date, time, calendar, and whether it's all-day
+- **✏ pencil icon** on a popup event to edit it (title, date, time, and calendar — moving between calendars is supported)
+- **🗑 trash icon** on a popup event to delete it (with confirmation)
+- Times use hour + minute dropdowns (5-minute increments) and are saved in your local timezone
+
+### To-Do list
+- Add tasks with the input field or press **Enter**
+- Check off tasks to mark them done (last 5 completed tasks are shown)
+- Drag the ⠿ handle to reorder active tasks
+- Click ✕ to delete a task
+
+---
+
 ## Keyboard shortcuts
 
 | Key | Action |
 |-----|--------|
 | F11 | Toggle fullscreen |
-| Ctrl+← | Previous month |
-| Ctrl+→ | Next month |
+| Ctrl+← | Previous month / period |
+| Ctrl+→ | Next month / period |
 | Enter | Add todo (when input focused) |
-| Escape | Close popups/modals |
+| Escape | Close popups / modals |
+
+---
+
+## Local data
+
+All local data is stored in `~/.homeapp/`:
+
+| File | Contents |
+|------|----------|
+| `credentials.json` | Google OAuth client credentials |
+| `token.json` | Your login session token |
+| `todos.json` | To-do list |
+| `calendar_visibility.json` | Which calendars are shown/hidden |
+
+None of these files are tracked by git.
 
 ---
 
