@@ -8,15 +8,37 @@ Windows screensaver CLI:
   /c        — config dialog
 """
 
+# ── Early crash log — written before any risky import ─────────────────────────
 import sys
-import json
-import random
-import threading
-import logging
-import tkinter as tk
-from datetime import datetime, timedelta
-from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont, ImageTk
+import os
+from pathlib import Path as _Path
+
+_APP_DIR = _Path.home() / '.homeapp'
+_APP_DIR.mkdir(exist_ok=True)
+_LOG_PATH = str(_APP_DIR / 'screensaver.log')
+
+def _early_log(msg):
+    try:
+        with open(_LOG_PATH, 'a') as _f:
+            _f.write(msg + '\n')
+    except Exception:
+        pass
+
+_early_log(f'--- Screensaver starting (Python {sys.version}) ---')
+
+try:
+    import json
+    import random
+    import threading
+    import logging
+    import tkinter as tk
+    from datetime import datetime, timedelta
+    from PIL import Image, ImageDraw, ImageFont, ImageTk
+    _early_log('All imports OK')
+except Exception as _e:
+    import traceback as _tb
+    _early_log('IMPORT FAILED:\n' + _tb.format_exc())
+    sys.exit(1)
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 

@@ -21,6 +21,9 @@ pyinstaller ^
   --onefile ^
   --windowed ^
   --name HomeScreensaver ^
+  --collect-all=PIL ^
+  --hidden-import=tkinter ^
+  --hidden-import=tkinter.messagebox ^
   --hidden-import=google.oauth2.credentials ^
   --hidden-import=google.auth.transport.requests ^
   --hidden-import=google.auth.exceptions ^
