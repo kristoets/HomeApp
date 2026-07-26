@@ -45,13 +45,11 @@ DATA_MS    = 5 * 60_000  # ms between data refreshes
 # ── Logging ────────────────────────────────────────────────────────────────────
 
 APP_DIR.mkdir(exist_ok=True)
-logging.basicConfig(
-    filename=str(APP_DIR / 'screensaver.log'),
-    level=logging.DEBUG,
-    format='%(asctime)s %(levelname)s %(message)s',
-    encoding='utf-8',
-)
-log = logging.getLogger(__name__)
+log = logging.getLogger('screensaver')
+log.setLevel(logging.DEBUG)
+_log_handler = logging.FileHandler(str(APP_DIR / 'screensaver.log'))
+_log_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+log.addHandler(_log_handler)
 
 
 # ── Credentials ────────────────────────────────────────────────────────────────
