@@ -7,7 +7,7 @@ echo   Build: Home Screensaver
 echo ==========================================
 echo.
 
-REM ── Install/update dependencies ───────────────────────────────────────────
+REM ── Dependencies ──────────────────────────────────────────────────────────
 echo [1/4] Checking dependencies...
 pip install pyinstaller pillow --quiet --upgrade
 if errorlevel 1 (
@@ -15,15 +15,18 @@ if errorlevel 1 (
     pause & exit /b 1
 )
 
-REM ── Build EXE ──────────────────────────────────────────────────────────────
-echo [2/4] Building executable...
+REM ── Clean old build ────────────────────────────────────────────────────────
+if exist build rmdir /S /Q build
+if exist dist  rmdir /S /Q dist
+
+REM ── Build (folder mode — avoids temp-extraction issues with tkinter) ───────
+echo [2/4] Building...
 pyinstaller ^
-  --onefile ^
+  --onedir ^
   --windowed ^
   --name HomeScreensaver ^
   --collect-all=PIL ^
-  --hidden-import=tkinter ^
-  --hidden-import=tkinter.messagebox ^
+  --collect-all=tkinter ^
   --hidden-import=google.oauth2.credentials ^
   --hidden-import=google.auth.transport.requests ^
   --hidden-import=google.auth.exceptions ^
@@ -31,39 +34,37 @@ pyinstaller ^
   --hidden-import=googleapiclient._helpers ^
   screensaver.py
 
-if not exist dist\HomeScreensaver.exe (
+if not exist "dist\HomeScreensaver\HomeScreensaver.exe" (
     echo.
-    echo ERROR: Build failed. Check the output above for details.
+    echo ERROR: Build failed. Check output above.
     pause & exit /b 1
 )
 
-REM ── Rename to .scr ─────────────────────────────────────────────────────────
-echo [3/4] Creating .scr file...
-copy /Y dist\HomeScreensaver.exe dist\HomeScreensaver.scr >nul
+REM ── Rename exe to scr ──────────────────────────────────────────────────────
+echo [3/4] Installing to AppData (no admin needed)...
+set INSTALL_DIR=%LOCALAPPDATA%\HomeScreensaver
 
-REM ── Copy to System32 (elevates via UAC) ────────────────────────────────────
-echo [4/4] Installing to System32 (a UAC prompt will appear)...
-set SRC=%CD%\dist\HomeScreensaver.scr
-set DST=%SYSTEMROOT%\System32\HomeScreensaver.scr
+if exist "%INSTALL_DIR%" rmdir /S /Q "%INSTALL_DIR%"
+mkdir "%INSTALL_DIR%"
+xcopy /Y /E /Q "dist\HomeScreensaver\*" "%INSTALL_DIR%\" >nul
+ren "%INSTALL_DIR%\HomeScreensaver.exe" "HomeScreensaver.scr"
 
-powershell -NoProfile -Command ^
-  "Start-Process cmd -ArgumentList '/c copy /Y \"%SRC%\" \"%DST%\"' -Verb RunAs -Wait" 2>nul
-
-if exist "%DST%" (
-    echo Installed to System32 successfully.
-) else (
-    echo Could not copy to System32.
-    echo Run this manually in an admin PowerShell:
-    echo   Copy-Item "%SRC%" "%DST%" -Force
-)
+REM ── Register in registry ───────────────────────────────────────────────────
+echo [4/4] Registering screensaver...
+reg add "HKCU\Control Panel\Desktop" /v "SCRNSAVE.EXE"      /t REG_SZ /d "%INSTALL_DIR%\HomeScreensaver.scr" /f >nul
+reg add "HKCU\Control Panel\Desktop" /v "ScreenSaveActive"  /t REG_SZ /d "1" /f >nul
+reg add "HKCU\Control Panel\Desktop" /v "ScreenSaveTimeOut" /t REG_SZ /d "300" /f >nul
 
 echo.
 echo ==========================================
 echo   Done!
 echo ==========================================
 echo.
-echo To test:  dist\HomeScreensaver.scr /s
-echo To configure: Settings ^> Personalization ^> Lock screen ^> Screen saver
-echo Select "HomeScreensaver" from the dropdown.
+echo Screensaver installed and registered (activates after 5 min idle).
+echo.
+echo Test it now:
+echo   "%INSTALL_DIR%\HomeScreensaver.scr" /s
+echo.
+echo To change timeout: Settings ^> Personalization ^> Lock screen ^> Screen saver
 echo.
 pause
