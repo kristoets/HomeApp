@@ -324,7 +324,7 @@ class Screensaver:
 
 # ── Entry points ───────────────────────────────────────────────────────────────
 
-def run_screensaver(hwnd: str | None = None):
+def run_screensaver(hwnd=None):
     root = tk.Tk()
     root.title('Home Screensaver')
     root.configure(bg='black')
