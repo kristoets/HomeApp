@@ -8,7 +8,7 @@ echo ==========================================
 echo.
 
 REM ── Install/update dependencies ───────────────────────────────────────────
-echo [1/3] Checking dependencies...
+echo [1/4] Checking dependencies...
 pip install pyinstaller pillow --quiet --upgrade
 if errorlevel 1 (
     echo ERROR: pip install failed. Make sure Python is in your PATH.
@@ -16,7 +16,7 @@ if errorlevel 1 (
 )
 
 REM ── Build EXE ──────────────────────────────────────────────────────────────
-echo [2/3] Building executable...
+echo [2/4] Building executable...
 pyinstaller ^
   --onefile ^
   --windowed ^
@@ -35,25 +35,32 @@ if not exist dist\HomeScreensaver.exe (
 )
 
 REM ── Rename to .scr ─────────────────────────────────────────────────────────
-echo [3/3] Creating .scr file...
+echo [3/4] Creating .scr file...
 copy /Y dist\HomeScreensaver.exe dist\HomeScreensaver.scr >nul
+
+REM ── Copy to System32 (elevates via UAC) ────────────────────────────────────
+echo [4/4] Installing to System32 (a UAC prompt will appear)...
+set SRC=%CD%\dist\HomeScreensaver.scr
+set DST=%SYSTEMROOT%\System32\HomeScreensaver.scr
+
+powershell -NoProfile -Command ^
+  "Start-Process cmd -ArgumentList '/c copy /Y \"%SRC%\" \"%DST%\"' -Verb RunAs -Wait" 2>nul
+
+if exist "%DST%" (
+    echo Installed to System32 successfully.
+) else (
+    echo Could not copy to System32.
+    echo Run this manually in an admin PowerShell:
+    echo   Copy-Item "%SRC%" "%DST%" -Force
+)
 
 echo.
 echo ==========================================
-echo   Done!  dist\HomeScreensaver.scr
+echo   Done!
 echo ==========================================
 echo.
-echo HOW TO INSTALL:
-echo   Option A (easiest):
-echo     Right-click  dist\HomeScreensaver.scr  and choose "Install"
-echo.
-echo   Option B (manual):
-echo     Copy dist\HomeScreensaver.scr to C:\Windows\System32\
-echo     Then open: Settings > Personalization > Lock screen > Screen saver
-echo     Select "HomeScreensaver" from the dropdown
-echo.
-echo   Option C (quick test, no install):
-echo     Double-click dist\HomeScreensaver.scr  to run it now
-echo     (or run:  dist\HomeScreensaver.scr /s )
+echo To test:  dist\HomeScreensaver.scr /s
+echo To configure: Settings ^> Personalization ^> Lock screen ^> Screen saver
+echo Select "HomeScreensaver" from the dropdown.
 echo.
 pause
