@@ -32,6 +32,7 @@ try:
     import threading
     import logging
     import tkinter as tk
+    from pathlib import Path
     from datetime import datetime, timedelta
     from PIL import Image, ImageDraw, ImageFont, ImageTk
     _early_log('All imports OK')
