@@ -123,6 +123,43 @@ None of these files are tracked by git.
 
 ---
 
+## Screensaver (Windows)
+
+The screensaver shows a photo slideshow with your active Google Tasks overlaid on the left. It reads the same login session as the main app — no separate login needed.
+
+### Build
+
+Run `build_screensaver.bat` (double-click or from a terminal):
+
+```
+build_screensaver.bat
+```
+
+This installs PyInstaller and Pillow if needed, then produces `dist\HomeScreensaver.scr`.
+
+**Prerequisite:** log in to the main app at least once so `~/.homeapp/token.json` exists.
+
+### Install
+
+**Option A — easiest:** right-click `dist\HomeScreensaver.scr` → **Install**
+
+**Option B — manual:**
+1. Copy `dist\HomeScreensaver.scr` to `C:\Windows\System32\`
+2. Open **Settings → Personalization → Lock screen → Screen saver**
+3. Select **HomeScreensaver** from the dropdown → OK
+
+**Option C — quick test (no install):** double-click `dist\HomeScreensaver.scr`
+
+### What it shows
+
+- Photos from `Pictures\` and `OneDrive\Pictures\` (same sources as the Windows Photos screensaver)
+- Large clock and date in the top-left
+- Your Google Tasks below — tasks due today are shown in white, others dimmed
+- Tasks refresh from Google API every 5 minutes while the screensaver is running
+- Move the mouse, press any key, or click to exit
+
+---
+
 ## Windows notes
 
 - PyWebView on Windows uses Microsoft Edge (WebView2) which is pre-installed on Windows 10/11
