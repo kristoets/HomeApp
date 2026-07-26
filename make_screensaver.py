@@ -46,8 +46,16 @@ def main():
     pythonw = find_pythonw()
     print(f'Python:  {pythonw}')
 
-    # distlib ships with every pip installation — no extra install needed
-    from distlib.scripts import ScriptMaker
+    # distlib ships with pip — try direct import, then pip's vendored copy
+    try:
+        from distlib.scripts import ScriptMaker
+    except ImportError:
+        try:
+            from pip._vendor.distlib.scripts import ScriptMaker
+        except ImportError:
+            print('Installing distlib...')
+            subprocess.run([sys.executable, '-m', 'pip', 'install', 'distlib'], check=True)
+            from distlib.scripts import ScriptMaker
     maker = ScriptMaker(str(INSTALL_DIR), str(INSTALL_DIR))
     maker.executable = pythonw
     maker.variants   = {''}   # single exe, no -3 / -3.x variants
