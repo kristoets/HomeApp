@@ -12,6 +12,7 @@ import sys
 import json
 import random
 import threading
+import logging
 import tkinter as tk
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -41,6 +42,17 @@ IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
 SLIDE_MS   = 10_000      # ms each photo is shown after it appears
 DATA_MS    = 5 * 60_000  # ms between data refreshes
 
+# ── Logging ────────────────────────────────────────────────────────────────────
+
+APP_DIR.mkdir(exist_ok=True)
+logging.basicConfig(
+    filename=str(APP_DIR / 'screensaver.log'),
+    level=logging.DEBUG,
+    format='%(asctime)s %(levelname)s %(message)s',
+    encoding='utf-8',
+)
+log = logging.getLogger(__name__)
+
 
 # ── Credentials ────────────────────────────────────────────────────────────────
 
@@ -67,11 +79,14 @@ def _get_creds():
 
 def fetch_all():
     """Returns (today_events, tomorrow_events, tasks). Safe to call from any thread."""
+    log.info('fetch_all started')
     if not CREDS_FILE.exists() or not TOKEN_FILE.exists():
+        log.warning('Missing credentials (%s) or token (%s)', CREDS_FILE, TOKEN_FILE)
         return [], [], []
     try:
         from googleapiclient.discovery import build
         creds = _get_creds()
+        log.info('Credentials OK, valid=%s', creds.valid)
         cal_svc  = build('calendar', 'v3', credentials=creds, cache_discovery=False)
         task_svc = build('tasks',    'v1', credentials=creds, cache_discovery=False)
 
@@ -132,9 +147,12 @@ def fetch_all():
         today_tasks = [t for t in tasks if t.get('due', '').startswith(today_str)]
         other_tasks = [t for t in tasks if not t.get('due', '').startswith(today_str)]
 
+        log.info('Fetched %d today events, %d tomorrow events, %d tasks',
+                 len(today_evs), len(tomorrow_evs), len(today_tasks + other_tasks))
         return today_evs, tomorrow_evs, today_tasks + other_tasks
 
     except Exception:
+        log.exception('fetch_all failed')
         return [], [], []
 
 
@@ -387,6 +405,8 @@ class Screensaver:
 
     def _on_data(self, result):
         self._today_evs, self._tomorrow_evs, self._tasks = result
+        log.info('Data received: %d today evs, %d tomorrow evs, %d tasks',
+                 len(self._today_evs), len(self._tomorrow_evs), len(self._tasks))
         # Re-render current photo with fresh data
         if self._bg_pil is not None:
             self._render_in_bg(self._bg_pil)
